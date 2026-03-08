@@ -1,0 +1,75 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+body {
+  margin: 0;
+}
+
+header {
+  background: #0f172a;
+  color: white;
+  padding: 1.5rem;
+}
+
+main {
+  padding: 1.2rem;
+  display: grid;
+  gap: 1.2rem;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.bill-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.bill-card {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.9rem;
+  background: white;
+}
+
+.bill-card button,
+.vote-actions button,
+#refreshBtn,
+#askSynopsis {
+  background: #2563eb;
+  border: none;
+  color: white;
+  border-radius: 6px;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.bill-detail {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.vote-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.hidden {
+  display: none;
+}
+
+pre {
+  white-space: pre-wrap;
+  background: #e2e8f0;
+  padding: 0.7rem;
+  border-radius: 6px;
+}

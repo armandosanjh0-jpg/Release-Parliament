@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Release Parliament Canada</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Release Parliament Canada</h1>
+      <p>Track Parliament of Canada bills since 2005, review House and Senate votes, and cast your own vote.</p>
+    </header>
+
+    <main>
+      <section class="controls">
+        <label>
+          Show bills from year:
+          <input id="fromYear" type="number" value="2005" min="2005" />
+        </label>
+        <button id="refreshBtn">Refresh</button>
+      </section>
+
+      <section>
+        <h2>Parliament of Canada Bills</h2>
+        <div id="billList" class="bill-list"></div>
+      </section>
+
+      <section id="billDetail" class="bill-detail hidden">
+        <h2 id="billTitle"></h2>
+        <p id="billMeta"></p>
+        <p id="billSummary"></p>
+        <details>
+          <summary>Read full bill text</summary>
+          <p id="billText"></p>
+        </details>
+
+        <div class="vote-columns">
+          <div>
+            <h3>House of Commons Votes</h3>
+            <ul id="mpVotes"></ul>
+          </div>
+          <div>
+            <h3>Senate of Canada Votes</h3>
+            <ul id="senatorVotes"></ul>
+          </div>
+        </div>
+
+        <div>
+          <h3>Citizen Vote</h3>
+          <div class="vote-actions">
+            <button data-vote="yea">Yea</button>
+            <button data-vote="nay">Nay</button>
+            <button data-vote="abstain">Abstain</button>
+          </div>
+          <p id="citizenVoteTotals"></p>
+        </div>
+
+        <div>
+          <h3>Ask GPT for a synopsis</h3>
+          <label>
+            Lens:
+            <select id="synopsisLens">
+              <option value="right" selected>Centre-right (default)</option>
+              <option value="neutral">Neutral</option>
+            </select>
+          </label>
+          <textarea id="synopsisQuestion" rows="3" placeholder="e.g. What does this bill change for Canadian families?"></textarea>
+          <button id="askSynopsis">Generate synopsis</button>
+          <pre id="synopsisOutput"></pre>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

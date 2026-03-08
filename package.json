@@ -1,0 +1,11 @@
+{
+  "name": "release-parliament",
+  "version": "1.0.0",
+  "description": "Parliament bill explorer with vote records and citizen voting",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "type": "commonjs"
+}
