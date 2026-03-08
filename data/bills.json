@@ -1,0 +1,71 @@
+[
+  {
+    "id": "C-48-2005",
+    "title": "Budget Implementation Act, 2005",
+    "session": "38th Parliament, 1st Session",
+    "status": "Royal Assent",
+    "date": "2005-07-20",
+    "summary": "Implements federal budget measures including transfers, taxation amendments, and targeted spending programs.",
+    "fullText": "An Act to implement certain provisions of the budget tabled in Parliament, including fiscal transfers, tax amendments, and accountability measures for public spending.",
+    "mpVotes": [
+      { "name": "Hon. Bill Graham", "party": "Liberal", "vote": "Yea", "riding": "Toronto Centre" },
+      { "name": "Jason Kenney", "party": "Conservative", "vote": "Nay", "riding": "Calgary Southeast" },
+      { "name": "Gilles Duceppe", "party": "Bloc Québécois", "vote": "Nay", "riding": "Laurier—Sainte-Marie" }
+    ],
+    "senatorVotes": [
+      { "name": "Marjory LeBreton", "group": "Conservative", "vote": "Nay", "province": "Ontario" },
+      { "name": "Joan Fraser", "group": "Liberal", "vote": "Yea", "province": "Quebec" }
+    ],
+    "upcoming": false
+  },
+  {
+    "id": "C-10-2012",
+    "title": "Safe Streets and Communities Act",
+    "session": "41st Parliament, 1st Session",
+    "status": "Royal Assent",
+    "date": "2012-03-13",
+    "summary": "Reforms criminal justice provisions, including sentencing rules and victim-focused protections.",
+    "fullText": "An Act to enact and amend criminal justice legislation in support of public safety, clearer sentencing, and stronger safeguards for victims of crime.",
+    "mpVotes": [
+      { "name": "Rob Nicholson", "party": "Conservative", "vote": "Yea", "riding": "Niagara Falls" },
+      { "name": "Ralph Goodale", "party": "Liberal", "vote": "Nay", "riding": "Wascana" },
+      { "name": "Thomas Mulcair", "party": "NDP", "vote": "Nay", "riding": "Outremont" }
+    ],
+    "senatorVotes": [
+      { "name": "Don Plett", "group": "Conservative", "vote": "Yea", "province": "Manitoba" },
+      { "name": "Art Eggleton", "group": "Liberal", "vote": "Nay", "province": "Ontario" }
+    ],
+    "upcoming": false
+  },
+  {
+    "id": "C-69-2019",
+    "title": "Impact Assessment Act (Bill C-69)",
+    "session": "42nd Parliament, 1st Session",
+    "status": "Royal Assent",
+    "date": "2019-06-21",
+    "summary": "Introduces a new federal impact assessment framework for major projects, including environmental and social criteria.",
+    "fullText": "An Act to enact the Impact Assessment Act and related amendments, establishing a modernized federal review process for designated projects and regulatory oversight.",
+    "mpVotes": [
+      { "name": "Catherine McKenna", "party": "Liberal", "vote": "Yea", "riding": "Ottawa Centre" },
+      { "name": "Andrew Scheer", "party": "Conservative", "vote": "Nay", "riding": "Regina—Qu'Appelle" },
+      { "name": "Jagmeet Singh", "party": "NDP", "vote": "Nay", "riding": "Burnaby South" }
+    ],
+    "senatorVotes": [
+      { "name": "Yuen Pau Woo", "group": "Independent Senators Group", "vote": "Yea", "province": "British Columbia" },
+      { "name": "David Tkachuk", "group": "Conservative", "vote": "Nay", "province": "Saskatchewan" }
+    ],
+    "upcoming": false
+  },
+  {
+    "id": "C-71-2026",
+    "title": "Fiscal Responsibility and Energy Security Act",
+    "session": "45th Parliament, 1st Session",
+    "status": "Scheduled for third reading vote",
+    "date": "2026-10-05",
+    "summary": "Proposes spending restraint rules, targeted tax relief, and accelerated approvals for strategic Canadian energy projects.",
+    "fullText": "An Act to establish federal deficit guardrails, provide broad-based tax relief for working families, and streamline approvals for nationally significant energy and infrastructure projects.",
+    "mpVotes": [],
+    "senatorVotes": [],
+    "upcoming": true
+  }
+]
