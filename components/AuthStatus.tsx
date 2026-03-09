@@ -3,7 +3,8 @@ import { cookies } from 'next/headers';
 import { getUserFromToken, sessionCookieName } from '@/lib/auth';
 
 export async function AuthStatus() {
-  const token = cookies().get(sessionCookieName())?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get(sessionCookieName())?.value;
   const user = getUserFromToken(token);
 
   if (!user) {
