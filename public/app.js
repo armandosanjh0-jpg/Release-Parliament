@@ -29,7 +29,11 @@ async function loadBills() {
       card.className = 'bill-card';
       card.innerHTML = `
         <h3>${bill.title}</h3>
-        <p><strong>${bill.id}</strong> · ${bill.session} · ${bill.status}${bill.upcoming ? ' (Upcoming vote)' : ''}</p>
+        <p>
+          <strong>${bill.id}</strong> · ${bill.session} · ${bill.status}
+          ${bill.isLaw ? ' <span style="color:green">(Law)</span>' : ''}
+          ${bill.upcoming ? ' (Upcoming vote)' : ''}
+        </p>
         <p>${bill.summary}</p>
         <button data-id="${bill.id}">Open bill</button>
       `;
@@ -38,21 +42,25 @@ async function loadBills() {
     });
 }
 
-function renderVotes(list, items, formatter) {
+function renderVotes(list, items) {
   list.innerHTML = '';
-  if (!items.length) {
-    list.innerHTML = '<li>No votes yet.</li>';
+  if (!items || !items.length) {
+    list.innerHTML = '<li>No votes recorded.</li>';
     return;
   }
-  items.forEach((item) => {
+  items.forEach((vote) => {
     const li = document.createElement('li');
-    li.textContent = formatter(item);
+    // vote shape from server: { description, date, yea, nay, paired, result, url }
+    const resultText = vote.result ? ` — ${vote.result}` : '';
+    const dateText = vote.date ? ` (${vote.date})` : '';
+    li.textContent = `${vote.description}${dateText}: Yea ${vote.yea}, Nay ${vote.nay}${resultText}`;
     list.appendChild(li);
   });
 }
 
 function renderCitizenTotals(citizenVotes) {
-  elements.citizenTotals.textContent = `Citizen totals — Yea: ${citizenVotes.yea}, Nay: ${citizenVotes.nay}, Abstain: ${citizenVotes.abstain}`;
+  elements.citizenTotals.textContent =
+    `Citizen totals — Yea: ${citizenVotes.yea}, Nay: ${citizenVotes.nay}, Abstain: ${citizenVotes.abstain}`;
 }
 
 async function showBill(billId) {
@@ -64,12 +72,25 @@ async function showBill(billId) {
   elements.title.textContent = `${bill.title} (${bill.id})`;
   elements.meta.textContent = `${bill.session} · ${bill.date} · ${bill.status}`;
   elements.summary.textContent = bill.summary;
-  elements.text.textContent = bill.fullText;
 
-  renderVotes(elements.mpVotes, bill.mpVotes, (vote) => `${vote.name} (${vote.party}, ${vote.riding || 'N/A'}) — ${vote.vote}`);
-  renderVotes(elements.senatorVotes, bill.senatorVotes, (vote) => `${vote.name} (${vote.group}, ${vote.province || 'N/A'}) — ${vote.vote}`);
+  // Render full bill text as a clickable link instead of plain text
+  if (bill.fullTextUrl) {
+    elements.text.innerHTML =
+      `<a href="${bill.fullTextUrl}" target="_blank" rel="noopener">Read full bill text on parl.ca ↗</a>`;
+  } else if (bill.legisInfoUrl) {
+    elements.text.innerHTML =
+      `<a href="${bill.legisInfoUrl}" target="_blank" rel="noopener">View bill info on LEGISinfo ↗</a>`;
+  } else {
+    elements.text.textContent = 'No full text link available.';
+  }
+
+  // mpVotes now holds all recorded votes (House + Senate mixed from vote_urls)
+  renderVotes(elements.mpVotes, bill.mpVotes);
+
+  // senatorVotes is reserved — show a note for now
+  elements.senatorVotes.innerHTML = '<li>Senate vote breakdown coming soon.</li>';
+
   renderCitizenTotals(bill.citizenVotes);
-
   elements.synopsisOutput.textContent = '';
 }
 
