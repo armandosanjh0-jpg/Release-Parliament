@@ -7,79 +7,123 @@ const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const citizenVotes = new Map();
 
-// ─── OpenParliament live data cache ───────────────────────────────────────────
+// ─── Bill data cache ──────────────────────────────────────────────────────────
 let billsCache = null;
 let cacheTimestamp = 0;
-const CACHE_TTL_MS = 10 * 60 * 1000; // refresh every 10 minutes
+const CACHE_TTL_MS = 10 * 60 * 1000;
 
-async function fetchFromOpenParliament(endpoint) {
-  const res = await fetch(`https://api.openparliament.ca${endpoint}`, {
-    headers: {
-      'Accept': 'application/json',
-      'API-Version': 'v1'
-    }
+// PRIMARY: Official Parliament of Canada LEGISinfo JSON feed
+// Covers current/latest session, always up to date, no API key or rate limits
+async function fetchFromLegisinfo() {
+  const res = await fetch('https://www.parl.ca/legisinfo/en/bills/json', {
+    headers: { 'Accept': 'application/json', 'User-Agent': 'Release-Parliament/1.0 (open source civic tool)' }
   });
-  if (!res.ok) throw new Error(`OpenParliament error: ${res.status}`);
-  return res.json();
+  if (!res.ok) throw new Error(`LEGISinfo error: ${res.status}`);
+  const data = await res.json();
+  const items = data.Bills || data.bills || (Array.isArray(data) ? data : []);
+  return items.map(normalizeLegisinfoBill);
 }
 
-async function fetchAllBills() {
-  const bills = [];
-  let url = '/bills/?limit=50&offset=0';
-
-  // Paginate through all bills (OpenParliament returns 50 at a time)
-  while (url) {
-    const data = await fetchFromOpenParliament(url);
-    for (const b of data.objects) {
-      bills.push(normalizeBill(b));
-    }
-    url = data.pagination?.next_url || null;
-    if (bills.length >= 500) break; // safety cap
-  }
-  return bills;
-}
-
-function normalizeBill(b) {
-  // status.en is the human-readable status e.g. "Law (royal assent given)"
-  const statusText = b.status?.en || b.status_code || 'Unknown';
-
-  // text_url is the direct link to the full bill text on parl.ca
-  // legisinfo_url is the bill info page — use text_url first, fall back to legisinfo_url
-  const fullTextUrl = b.text_url || b.legisinfo_url || '';
+function normalizeLegisinfoBill(b) {
+  const parlNum = b.ParliamentNumber || b.parliamentNumber || '';
+  const sessNum = b.SessionNumber || b.sessionNumber || '';
+  const session = parlNum && sessNum ? `${parlNum}-${sessNum}` : '';
+  const billNum = b.NumberCode || b.numberCode || b.BillNumber || '';
+  const isLaw = !!(b.ReceivedRoyalAssentDateTime || b.receivedRoyalAssentDateTime);
+  const statusName = b.StatusName || b.statusName || b.LatestBillEventStatusName || 'In progress';
+  const legisInfoUrl = billNum && session
+    ? `https://www.parl.ca/legisinfo/en/bill/${session}/${billNum.toLowerCase()}`
+    : '';
+  const rawDate = b.PassedFirstReadingDateTime || b.passedFirstReadingDateTime || '';
+  const date = rawDate ? rawDate.slice(0, 10) : '2005-01-01';
+  const sponsorFirst = b.SponsorPersonOfficialFirstName || b.sponsorPersonOfficialFirstName || '';
+  const sponsorLast = b.SponsorPersonOfficialLastName || b.sponsorPersonOfficialLastName || '';
 
   return {
-    id: b.number,
-    title: b.name?.en || b.short_title?.en || b.number,
-    summary: statusText,
-    status: statusText,
-    statusCode: b.status_code || '',
-    isLaw: !!b.law,
-    session: b.session,
-    date: b.introduced || '2005-01-01',
-    fullTextUrl,                  // direct link to read the bill
-    legisInfoUrl: b.legisinfo_url || '',
-    sponsor: b.sponsor_politician_url || '',
-    homeChamber: b.home_chamber || 'House',
-    voteUrls: b.vote_urls || [],  // list of vote endpoints to fetch
-    url: b.url,
+    id: billNum,
+    title: b.LongTitle || b.longTitle || b.ShortTitle || b.shortTitle || billNum,
+    shortTitle: b.ShortTitle || b.shortTitle || '',
+    summary: statusName,
+    status: statusName,
+    isLaw,
+    session,
+    date,
+    fullTextUrl: legisInfoUrl,
+    legisInfoUrl,
+    billType: b.BillDocumentTypeName || b.billDocumentTypeName || '',
+    sponsor: sponsorFirst ? `${sponsorFirst} ${sponsorLast}`.trim() : '',
+    voteUrls: [],
     mpVotes: [],
     senatorVotes: []
   };
 }
 
+// FALLBACK: OpenParliament for older sessions
+async function fetchFromOpenParliament(endpoint) {
+  const res = await fetch(`https://api.openparliament.ca${endpoint}`, {
+    headers: { 'Accept': 'application/json', 'API-Version': 'v1' }
+  });
+  if (!res.ok) throw new Error(`OpenParliament error: ${res.status}`);
+  return res.json();
+}
+
+async function fetchOlderBills() {
+  const bills = [];
+  let url = '/bills/?limit=50&offset=0';
+  while (url) {
+    const data = await fetchFromOpenParliament(url);
+    for (const b of (data.objects || [])) {
+      if (b.session && b.session.startsWith('45')) continue; // skip — LEGISinfo covers session 45
+      const statusText = b.status?.en || b.status_code || 'Unknown';
+      bills.push({
+        id: b.number,
+        title: b.name?.en || b.short_title?.en || b.number,
+        shortTitle: b.short_title?.en || '',
+        summary: statusText,
+        status: statusText,
+        isLaw: !!b.law,
+        session: b.session,
+        date: b.introduced || '2005-01-01',
+        fullTextUrl: b.text_url || b.legisinfo_url || '',
+        legisInfoUrl: b.legisinfo_url || '',
+        billType: '',
+        sponsor: '',
+        voteUrls: b.vote_urls || [],
+        mpVotes: [],
+        senatorVotes: []
+      });
+    }
+    url = data.pagination?.next_url || null;
+    if (bills.length >= 500) break;
+  }
+  return bills;
+}
+
 async function loadBills() {
   const now = Date.now();
-  if (billsCache && (now - cacheTimestamp) < CACHE_TTL_MS) {
-    return billsCache;
-  }
+  if (billsCache && (now - cacheTimestamp) < CACHE_TTL_MS) return billsCache;
+
   try {
-    console.log('Fetching fresh bills from OpenParliament...');
-    billsCache = await fetchAllBills();
+    console.log('Fetching bills from LEGISinfo...');
+    const current = await fetchFromLegisinfo();
+    console.log(`LEGISinfo returned ${current.length} bills.`);
+
+    let older = [];
+    try {
+      older = await fetchOlderBills();
+      console.log(`OpenParliament returned ${older.length} older bills.`);
+    } catch (e) {
+      console.warn('OpenParliament fallback failed:', e.message);
+    }
+
+    // Merge: LEGISinfo bills take priority, older bills fill in history
+    const idSet = new Set(current.map(b => b.id));
+    const merged = [...current, ...older.filter(b => !idSet.has(b.id))];
+    billsCache = merged;
     cacheTimestamp = now;
-    console.log(`Cached ${billsCache.length} bills.`);
+    console.log(`Total cached: ${billsCache.length} bills.`);
   } catch (err) {
-    console.error('OpenParliament fetch failed:', err.message);
-    // Return stale cache if available, else empty array
+    console.error('LEGISinfo fetch failed:', err.message);
     if (!billsCache) billsCache = [];
   }
   return billsCache;
@@ -88,24 +132,22 @@ async function loadBills() {
 async function loadVotesForBill(bill) {
   try {
     if (!bill.voteUrls || bill.voteUrls.length === 0) return [];
-    const votePromises = bill.voteUrls.slice(0, 10).map(voteUrl =>
-      fetchFromOpenParliament(voteUrl).catch(() => null)
+    const results = await Promise.all(
+      bill.voteUrls.slice(0, 10).map(u => fetchFromOpenParliament(u).catch(() => null))
     );
-    const votes = await Promise.all(votePromises);
-    return votes.filter(Boolean).map(v => ({
-      description: v.description?.en || "Vote",
-      date: v.date || "",
+    return results.filter(Boolean).map(v => ({
+      description: v.description?.en || 'Vote',
+      date: v.date || '',
       yea: v.yea_total || 0,
       nay: v.nay_total || 0,
       paired: v.paired_total || 0,
-      result: v.result || "",
-      url: v.url || ""
+      result: v.result || '',
     }));
   } catch {
     return [];
   }
 }
-// ──────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -126,21 +168,21 @@ function readRequestBody(req) {
     req.on('end', () => {
       if (!body) { resolve({}); return; }
       try { resolve(JSON.parse(body)); }
-      catch (error) { reject(new Error('Invalid JSON payload')); }
+      catch (e) { reject(new Error('Invalid JSON payload')); }
     });
     req.on('error', reject);
   });
 }
 
 function generateFallbackSynopsis(bill, question, lens = 'right') {
-  const voteStats = `${bill.mpVotes.length} House votes and ${bill.senatorVotes.length} Senate votes recorded`;
   const framing = lens === 'right'
-    ? 'From a centre-right perspective, focus on fiscal discipline, energy security, public safety, and limited bureaucracy.'
-    : 'From a neutral civic perspective, focus on practical effects for Canadians.';
+    ? 'From a centre-right perspective, this bill is relevant to fiscal discipline, energy security, public safety, and limited bureaucracy.'
+    : 'From a neutral civic perspective, here is what this bill means for Canadians.';
+  const sponsor = bill.sponsor ? ` Sponsored by ${bill.sponsor}.` : '';
   if (question) {
-    return `Question: ${question}\n\n${framing} ${bill.title} (${bill.id}) focuses on: ${bill.summary} Current status is ${bill.status} with ${voteStats}.`;
+    return `Question: ${question}\n\n${framing} ${bill.title} (${bill.id}) — Status: ${bill.status}.${sponsor}`;
   }
-  return `${framing} ${bill.title} (${bill.id}) in ${bill.session} — ${bill.summary} Status: ${bill.status}. ${voteStats}.`;
+  return `${bill.title} (${bill.id}), Session ${bill.session}. Status: ${bill.status}.${sponsor} ${framing}`;
 }
 
 async function maybeGenerateGptSynopsis(bill, question, lens = 'right') {
@@ -154,17 +196,13 @@ async function maybeGenerateGptSynopsis(bill, question, lens = 'right') {
     : 'Use a neutral, non-partisan civic lens. Be factual and concise.';
 
   const prompt = question
-    ? `Bill: ${bill.title}\nStatus: ${bill.status}\nSummary: ${bill.summary}\n\nUser question: ${question}\n\n${lensInstruction}\nWrite a short plain-language synopsis for Canadians.`
-    : `Provide a short plain-language synopsis for this bill.\nTitle: ${bill.title}\nSummary: ${bill.summary}\n\n${lensInstruction}`;
+    ? `Bill: ${bill.title}\nStatus: ${bill.status}\nSponsor: ${bill.sponsor || 'Unknown'}\n\nUser question: ${question}\n\n${lensInstruction}\nWrite a short plain-language synopsis for Canadians.`
+    : `Provide a short plain-language synopsis for this bill.\nTitle: ${bill.title}\nStatus: ${bill.status}\nSponsor: ${bill.sponsor || 'Unknown'}\n\n${lensInstruction}`;
 
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-      input: prompt,
-      max_output_tokens: 220
-    })
+    body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-4.1-mini', input: prompt, max_output_tokens: 220 })
   });
 
   if (!response.ok) {
@@ -177,14 +215,8 @@ async function maybeGenerateGptSynopsis(bill, question, lens = 'right') {
 }
 
 function getContentType(filePath) {
-  const ext = path.extname(filePath);
-  const types = {
-    '.html': 'text/html; charset=utf-8',
-    '.css': 'text/css; charset=utf-8',
-    '.js': 'application/javascript; charset=utf-8',
-    '.json': 'application/json; charset=utf-8'
-  };
-  return types[ext] || 'application/octet-stream';
+  const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };
+  return types[path.extname(filePath)] || 'application/octet-stream';
 }
 
 function serveStatic(req, res, pathname) {
@@ -211,29 +243,22 @@ function createServer() {
     if (req.method === 'GET' && url.pathname === '/api/bills') {
       const bills = await loadBills();
       const fromYear = Number(url.searchParams.get('fromYear') || 2005);
-      const filtered = bills.filter((bill) => Number(bill.date.slice(0, 4)) >= fromYear);
+      const filtered = bills.filter(b => Number(b.date.slice(0, 4)) >= fromYear);
       sendJson(res, 200, filtered);
       return;
     }
 
     const billRoute = parseBillId(url.pathname);
-    if (!billRoute) {
-      serveStatic(req, res, url.pathname);
-      return;
-    }
+    if (!billRoute) { serveStatic(req, res, url.pathname); return; }
 
     const bills = await loadBills();
-    const bill = bills.find((item) => item.id === billRoute.billId);
+    const bill = bills.find(b => b.id === billRoute.billId);
     if (!bill) { notFound(res); return; }
 
     if (req.method === 'GET' && billRoute.action === '') {
-      // Fetch live votes for this specific bill on demand
       const votes = await loadVotesForBill(bill);
       bill.mpVotes = votes;
-      sendJson(res, 200, {
-        ...bill,
-        citizenVotes: citizenVotes.get(bill.id) || { yea: 0, nay: 0, abstain: 0 }
-      });
+      sendJson(res, 200, { ...bill, citizenVotes: citizenVotes.get(bill.id) || { yea: 0, nay: 0, abstain: 0 } });
       return;
     }
 
@@ -241,17 +266,12 @@ function createServer() {
       try {
         const payload = await readRequestBody(req);
         const vote = String(payload.vote || '').toLowerCase();
-        if (!['yea', 'nay', 'abstain'].includes(vote)) {
-          sendJson(res, 400, { error: 'vote must be yea, nay, or abstain' });
-          return;
-        }
+        if (!['yea', 'nay', 'abstain'].includes(vote)) { sendJson(res, 400, { error: 'vote must be yea, nay, or abstain' }); return; }
         const current = citizenVotes.get(bill.id) || { yea: 0, nay: 0, abstain: 0 };
         current[vote] += 1;
         citizenVotes.set(bill.id, current);
         sendJson(res, 200, { billId: bill.id, citizenVotes: current });
-      } catch (error) {
-        sendJson(res, 400, { error: error.message });
-      }
+      } catch (e) { sendJson(res, 400, { error: e.message }); }
       return;
     }
 
@@ -262,9 +282,7 @@ function createServer() {
         const lens = payload.lens === 'neutral' ? 'neutral' : 'right';
         const synopsis = await maybeGenerateGptSynopsis(bill, question, lens);
         sendJson(res, 200, synopsis);
-      } catch (error) {
-        sendJson(res, 500, { error: 'Unable to generate synopsis' });
-      }
+      } catch (e) { sendJson(res, 500, { error: 'Unable to generate synopsis' }); }
       return;
     }
 
