@@ -40,18 +40,30 @@ async function fetchAllBills() {
 }
 
 function normalizeBill(b) {
-  // Map OpenParliament's shape to the shape your frontend already expects
+  // status.en is the human-readable status e.g. "Law (royal assent given)"
+  const statusText = b.status?.en || b.status_code || 'Unknown';
+
+  // text_url is the direct link to the full bill text on parl.ca
+  // legisinfo_url is the bill info page — use text_url first, fall back to legisinfo_url
+  const fullTextUrl = b.text_url || b.legisinfo_url || '';
+
   return {
     id: b.number,
-    title: b.name?.en || b.number,
-    summary: b.law ? 'This bill became law.' : (b.status?.en || 'Status unknown'),
-    status: b.status?.en || 'Unknown',
+    title: b.name?.en || b.short_title?.en || b.number,
+    summary: statusText,
+    status: statusText,
+    statusCode: b.status_code || '',
+    isLaw: !!b.law,
     session: b.session,
     date: b.introduced || '2005-01-01',
-    fullText: b.legisinfo_url ? `Full text: ${b.legisinfo_url}` : '',
+    fullTextUrl,                  // direct link to read the bill
+    legisInfoUrl: b.legisinfo_url || '',
+    sponsor: b.sponsor_politician_url || '',
+    homeChamber: b.home_chamber || 'House',
+    voteUrls: b.vote_urls || [],  // list of vote endpoints to fetch
     url: b.url,
-    mpVotes: [],       // loaded on demand per bill
-    senatorVotes: []   // loaded on demand per bill
+    mpVotes: [],
+    senatorVotes: []
   };
 }
 
@@ -73,11 +85,22 @@ async function loadBills() {
   return billsCache;
 }
 
-async function loadVotesForBill(billId) {
+async function loadVotesForBill(bill) {
   try {
-    // e.g. /votes/?bill=C-11
-    const data = await fetchFromOpenParliament(`/votes/?bill=${encodeURIComponent(billId)}&limit=50`);
-    return data.objects || [];
+    if (!bill.voteUrls || bill.voteUrls.length === 0) return [];
+    const votePromises = bill.voteUrls.slice(0, 10).map(voteUrl =>
+      fetchFromOpenParliament(voteUrl).catch(() => null)
+    );
+    const votes = await Promise.all(votePromises);
+    return votes.filter(Boolean).map(v => ({
+      description: v.description?.en || "Vote",
+      date: v.date || "",
+      yea: v.yea_total || 0,
+      nay: v.nay_total || 0,
+      paired: v.paired_total || 0,
+      result: v.result || "",
+      url: v.url || ""
+    }));
   } catch {
     return [];
   }
@@ -205,7 +228,7 @@ function createServer() {
 
     if (req.method === 'GET' && billRoute.action === '') {
       // Fetch live votes for this specific bill on demand
-      const votes = await loadVotesForBill(bill.id);
+      const votes = await loadVotesForBill(bill);
       bill.mpVotes = votes;
       sendJson(res, 200, {
         ...bill,
